@@ -2,9 +2,14 @@ import type { ApiErrorBody } from "@pila/shared";
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import { ZodError, z } from "zod";
 import {
+  AccountNotFoundError,
+  AccountTurnedOffError,
   EmailTakenError,
   InvalidCredentialsError,
+  LastAdminError,
+  NotAllowedError,
   NotLoggedInError,
+  OwnAccessError,
   UsernameTakenError,
 } from "../../domain/user/errors.js";
 
@@ -54,6 +59,22 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
     error instanceof NotLoggedInError
   ) {
     send(res, 401, { message: error.message });
+    return;
+  }
+  if (
+    error instanceof AccountTurnedOffError ||
+    error instanceof NotAllowedError
+  ) {
+    send(res, 403, { message: error.message });
+    return;
+  }
+  if (error instanceof AccountNotFoundError) {
+    send(res, 404, { message: error.message });
+    return;
+  }
+  // Rules about who can do what (admins can't lock themselves or everyone out)
+  if (error instanceof OwnAccessError || error instanceof LastAdminError) {
+    send(res, 409, { message: error.message });
     return;
   }
   // express.json(): body isn't valid JSON (400) or is too big (413)

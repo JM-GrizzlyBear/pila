@@ -1,10 +1,9 @@
-import type { LoginInput, PublicUser, RegisterInput } from "@pila/shared";
+import type { LoginInput, PublicUser } from "@pila/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchCurrentUser,
   logIn,
   logOut,
-  register,
 } from "../../infrastructure/api/authApi";
 
 export const CURRENT_USER_KEY = ["auth", "me"] as const;
@@ -22,20 +21,12 @@ export function useCurrentUser() {
 function useSetUser() {
   const queryClient = useQueryClient();
   return (user: PublicUser | null) => {
-    // Forget the previous user's data (their notes), but keep the login answer the pages watch
+    // Forget the previous user's data (like the accounts list), but keep the login answer the pages watch
     queryClient.removeQueries({
       predicate: (query) => query.queryKey[0] !== CURRENT_USER_KEY[0],
     });
     queryClient.setQueryData(CURRENT_USER_KEY, user);
   };
-}
-
-export function useRegister() {
-  const setUser = useSetUser();
-  return useMutation({
-    mutationFn: async (input: RegisterInput) => await register(input),
-    onSuccess: setUser,
-  });
 }
 
 export function useLogIn() {

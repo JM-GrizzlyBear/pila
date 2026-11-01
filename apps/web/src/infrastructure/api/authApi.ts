@@ -1,4 +1,4 @@
-import type { LoginInput, PublicUser, RegisterInput } from "@pila/shared";
+import type { LoginInput, PublicUser } from "@pila/shared";
 import { ApiError, request } from "./http";
 
 // The logged-in user, or null when nobody is logged in
@@ -10,15 +10,6 @@ export async function fetchCurrentUser() {
     if (error instanceof ApiError && error.status === 401) return null;
     throw error;
   }
-}
-
-export async function register(input: RegisterInput) {
-  const data = await request<{ user: PublicUser }>(
-    "/api/auth/register",
-    "POST",
-    input,
-  );
-  return data.user;
 }
 
 export async function logIn(input: LoginInput) {

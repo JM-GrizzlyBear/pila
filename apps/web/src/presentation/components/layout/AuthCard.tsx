@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-// The centered box used by the login and register pages
+// The centered box used by the sign-in page
 export function AuthCard({
   title,
   children,

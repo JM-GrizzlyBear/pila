@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useLogIn } from "../../application/auth/useAuth";
 import { AuthCard } from "../components/layout/AuthCard";
 import { ErrorAlert } from "../components/ui/ErrorAlert";
@@ -27,7 +27,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthCard title="Log in">
+    <AuthCard title="Sign in">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {logIn.isError && <ErrorAlert message={errorMessage(logIn.error)} />}
         <TextField
@@ -50,14 +50,11 @@ export function LoginPage() {
           disabled={logIn.isPending}
           className={buttonPrimary}
         >
-          {logIn.isPending ? "Logging in…" : "Log in"}
+          {logIn.isPending ? "Signing in…" : "Sign in"}
         </button>
       </form>
       <p className="mt-6 text-sm text-muted">
-        New here?{" "}
-        <Link to="/register" className="font-semibold text-brand underline">
-          Create an account
-        </Link>
+        No account yet? Ask your admin to add you.
       </p>
     </AuthCard>
   );

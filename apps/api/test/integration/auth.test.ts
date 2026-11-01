@@ -1,75 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { NEW_USER, PASSWORD, USERS } from "../fixtures/users.js";
+import { PASSWORD, USERS } from "../fixtures/users.js";
 import { useTestApp } from "./support/testApp.js";
 
 const t = useTestApp();
 
-describe("register", () => {
-  it("creates the account and logs the new user in", async () => {
-    const browser = t.api();
-    const response = await browser.post("/api/auth/register").send(NEW_USER);
-    expect(response.status).toBe(201);
-    expect(response.body.user).toMatchObject({
-      username: "ben",
-      email: "ben@example.com",
-    });
-    expect(response.body.user).not.toHaveProperty("passwordHash");
-
-    const me = await browser.get("/api/auth/me");
-    expect(me.status).toBe(200);
-    expect(me.body.user.username).toBe("ben");
-  });
-
-  it("stores usernames and emails in lowercase", async () => {
-    const response = await t
-      .api()
-      .post("/api/auth/register")
-      .send({ ...NEW_USER, username: "Ben", email: "BEN@Example.com" });
-    expect(response.body.user).toMatchObject({
-      username: "ben",
-      email: "ben@example.com",
-    });
-  });
-
-  it("refuses a taken username or email, naming the field", async () => {
-    const username = await t
-      .api()
-      .post("/api/auth/register")
-      .send({ ...NEW_USER, username: "MARIA" });
-    expect(username.status).toBe(409);
-    expect(username.body.errors).toHaveProperty("username");
-
-    const email = await t
-      .api()
-      .post("/api/auth/register")
-      .send({ ...NEW_USER, email: USERS.ana.email });
-    expect(email.status).toBe(409);
-    expect(email.body.errors).toHaveProperty("email");
-  });
-
-  it("checks every field", async () => {
-    const response = await t
-      .api()
-      .post("/api/auth/register")
-      .send({ username: "a!", email: "nope", password: "short" });
-    expect(response.status).toBe(400);
-    expect(Object.keys(response.body.errors).sort()).toEqual([
-      "email",
-      "password",
-      "username",
-    ]);
-  });
-});
-
-describe("log in and out", () => {
-  it("logs in with a username or an email, ignoring capitals", async () => {
+describe("sign in and out", () => {
+  it("signs in with a username or an email, ignoring capitals", async () => {
     for (const login of ["maria", "MARIA@example.com"]) {
       const response = await t
         .api()
         .post("/api/auth/login")
         .send({ login, password: PASSWORD });
       expect(response.status).toBe(200);
-      expect(response.body.user.id).toBe(USERS.maria.id);
+      expect(response.body.user).toMatchObject({
+        id: USERS.maria.id,
+        firstName: "Maria",
+        lastName: "Santos",
+        role: "staff",
+        active: true,
+      });
+      expect(response.body.user).not.toHaveProperty("passwordHash");
     }
   });
 
@@ -87,10 +37,33 @@ describe("log in and out", () => {
     expect(wrong.body.message).toBe(unknown.body.message);
   });
 
-  it("logging out ends the session", async () => {
+  it("refuses a turned-off account", async () => {
+    await t.pool.query("update users set active = false where id = $1", [
+      USERS.maria.id,
+    ]);
+    const response = await t
+      .api()
+      .post("/api/auth/login")
+      .send({ login: "maria", password: PASSWORD });
+    expect(response.status).toBe(403);
+    expect(response.body.message).toMatch(/turned off/);
+  });
+
+  it("signing out ends the session", async () => {
     const maria = await t.as("maria");
     expect((await maria.get("/api/auth/me")).status).toBe(200);
     expect((await maria.post("/api/auth/logout")).status).toBe(204);
     expect((await maria.get("/api/auth/me")).status).toBe(401);
+  });
+});
+
+describe("no public sign-up", () => {
+  it("there's no register route", async () => {
+    const response = await t.api().post("/api/auth/register").send({
+      username: "ben",
+      email: "ben@example.com",
+      password: "a-good-password",
+    });
+    expect(response.status).toBe(404);
   });
 });

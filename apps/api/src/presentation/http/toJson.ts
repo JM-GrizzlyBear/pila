@@ -8,6 +8,10 @@ export function userJson(user: SafeUser): PublicUser {
     id: user.id,
     username: user.username,
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    active: user.active,
     createdAt: user.createdAt.toISOString(),
   };
 }

@@ -1,4 +1,4 @@
-import { toSafeUser } from "../../domain/user/User.js";
+import { toSafeUser, type Role } from "../../domain/user/User.js";
 import type { UserRepository } from "../../domain/user/UserRepository.js";
 import {
   EmailTakenError,
@@ -7,19 +7,24 @@ import {
 import { normalizeLogin } from "../../domain/user/rules.js";
 import type { PasswordHasher } from "../ports/PasswordHasher.js";
 
-export interface RegisterUserInput {
+export interface CreateAccountInput {
+  firstName: string;
+  lastName: string;
   username: string;
   email: string;
+  role: Role;
+  // The first password the admin gives the person
   password: string;
 }
 
-export class RegisterUser {
+// Admin → Accounts → Add account. There's no public sign-up: every account is made here.
+export class CreateAccount {
   constructor(
     private readonly users: UserRepository,
     private readonly passwords: PasswordHasher,
   ) {}
 
-  async execute(input: RegisterUserInput) {
+  async execute(input: CreateAccountInput) {
     const username = normalizeLogin(input.username);
     const email = normalizeLogin(input.email);
 
@@ -30,6 +35,9 @@ export class RegisterUser {
     const user = await this.users.create({
       username,
       email,
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      role: input.role,
       passwordHash: await this.passwords.hash(input.password),
     });
     return toSafeUser(user);
