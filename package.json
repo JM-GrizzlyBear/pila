@@ -1,8 +1,8 @@
 {
-  "name": "pern-template",
+  "name": "pila",
   "version": "1.0.0",
   "private": true,
-  "description": "Starter for PostgreSQL, Express, React and Node apps with Clean Architecture",
+  "description": "Pila: a queue system for any place with counters",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
