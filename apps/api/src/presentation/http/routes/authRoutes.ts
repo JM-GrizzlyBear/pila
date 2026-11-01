@@ -1,28 +1,19 @@
-import { loginSchema, registerSchema } from "@pila/shared";
+import { loginSchema } from "@pila/shared";
 import { Router, type RequestHandler } from "express";
 import type { GetCurrentUser } from "../../../application/user/GetCurrentUser.js";
 import type { LogInUser } from "../../../application/user/LogInUser.js";
-import type { RegisterUser } from "../../../application/user/RegisterUser.js";
 import { currentUserId, requireAuth } from "../middleware/requireAuth.js";
 import { SESSION_COOKIE, endSession, startSession } from "../session.js";
 import { userJson } from "../toJson.js";
 
+// There's no sign-up: admins create every account (Admin → Accounts)
 export function authRoutes(deps: {
-  registerUser: RegisterUser;
   logInUser: LogInUser;
   getCurrentUser: GetCurrentUser;
   // Slows down password guessing
   limit: RequestHandler;
 }) {
   const router = Router();
-
-  // Creates the account and logs the new user in
-  router.post("/auth/register", deps.limit, async (req, res) => {
-    const input = registerSchema.parse(req.body);
-    const user = await deps.registerUser.execute(input);
-    await startSession(req, user.id);
-    res.status(201).json({ user: userJson(user) });
-  });
 
   router.post("/auth/login", deps.limit, async (req, res) => {
     const input = loginSchema.parse(req.body);

@@ -21,9 +21,48 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+// Only said after the right password, so it doesn't reveal which accounts exist
+export class AccountTurnedOffError extends Error {
+  constructor() {
+    super("This account is turned off. Please ask an admin.");
+    this.name = "AccountTurnedOffError";
+  }
+}
+
 export class NotLoggedInError extends Error {
   constructor() {
-    super("Please log in");
+    super("Please sign in");
     this.name = "NotLoggedInError";
+  }
+}
+
+export class NotAllowedError extends Error {
+  constructor() {
+    super("Only admins can do that");
+    this.name = "NotAllowedError";
+  }
+}
+
+export class AccountNotFoundError extends Error {
+  constructor() {
+    super("That account doesn't exist");
+    this.name = "AccountNotFoundError";
+  }
+}
+
+// So an admin can't lock themselves out by accident
+export class OwnAccessError extends Error {
+  constructor() {
+    super(
+      "You can't change your own role, turn off your own account or set your own password here. Ask another admin.",
+    );
+    this.name = "OwnAccessError";
+  }
+}
+
+export class LastAdminError extends Error {
+  constructor() {
+    super("Pila needs at least one admin who can sign in.");
+    this.name = "LastAdminError";
   }
 }

@@ -29,6 +29,10 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
       SESSION_SECRET: ${SESSION_SECRET}
+      # The first admin, created once on an empty database
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       # http://localhost has no HTTPS, so the login cookie can't be HTTPS-only here
       COOKIE_SECURE: "false"
     ports:

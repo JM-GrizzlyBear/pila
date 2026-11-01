@@ -6,7 +6,7 @@ People take a number at a kiosk, staff call numbers from their counter, and a TV
 
 _Pila_ is Filipino for "line" or "queue".
 
-> **Status:** starting point. This repo has the base (sign in, sign out, protected pages, tests, Docker, CI). The queue features below are being built next.
+> **Status:** being built. Done so far: sign in, accounts and roles (no public sign-up). The queue features below come next.
 
 ---
 
@@ -28,10 +28,14 @@ _Pila_ is Filipino for "line" or "queue".
 
 ## What's inside now
 
-- **Sign in, sign out** (and a register page for now; admin-created accounts come with the accounts feature)
+- **Sign in, sign out**
   - Sign in with a username or an email
   - Passwords hashed with bcrypt
   - Sessions stored in Postgres, sent as an HTTP-only cookie
+- **Accounts and roles** (see [Accounts and roles](#accounts-and-roles))
+  - No public sign-up: the first admin comes from the `ADMIN_*` settings, and admins add everyone else
+  - Two roles: **Admin** (sets up the place, manages accounts) and **Staff** (works the counters)
+  - Admins can change names, emails and roles, turn accounts off, and set a new password for someone who forgot theirs
 - **Protected pages**: signed-out visitors are sent to `/login` and come back after signing in
 - **One source of truth for forms**: the same zod rules check the form in the browser and the request in the API
 - **Tests**:
@@ -74,12 +78,12 @@ presentation  →  application  →  domain
 infrastructure ───────┘ (implements the interfaces the inner layers define)
 ```
 
-| Layer              | What lives there                                                                 | Knows about Express/Postgres? |
-| ------------------ | -------------------------------------------------------------------------------- | ----------------------------- |
-| **domain**         | Entities (`User`), rules, errors, repository **interfaces**                      | No                            |
-| **application**    | Use cases (`RegisterUser`, `LogInUser`, …) and ports (`PasswordHasher`, `Clock`) | No                            |
-| **infrastructure** | The real implementations: Postgres repositories, bcrypt, the clock               | Yes                           |
-| **presentation**   | HTTP: routes, middleware, sessions, the error handler                            | Yes                           |
+| Layer              | What lives there                                                                                  | Knows about Express/Postgres? |
+| ------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------- |
+| **domain**         | Entities (`User`), rules, errors, repository **interfaces**                                       | No                            |
+| **application**    | Use cases (`LogInUser`, `CreateAccount`, …) and ports (`PasswordHasher`, `SessionStore`, `Clock`) | No                            |
+| **infrastructure** | The real implementations: Postgres repositories, bcrypt, the clock                                | Yes                           |
+| **presentation**   | HTTP: routes, middleware, sessions, the error handler                                             | Yes                           |
 
 `apps/api/src/buildApp.ts` is the **composition root**: the one place that creates the real classes and hands them to the use cases. That's why the tests can swap in fakes, such as an in-memory repository or a fast password hasher.
 
@@ -151,12 +155,12 @@ pila/
 │           ├── application/         # auth/ hooks (TanStack Query)
 │           ├── presentation/
 │           │   ├── components/      # brand/ (PilaLogo), layout/, routing/ (RequireAuth, GuestOnly), ui/
-│           │   ├── pages/           # LoginPage, RegisterPage, HomePage
+│           │   ├── pages/           # LoginPage, HomePage, admin/ (AccountsPage, NewAccountPage, EditAccountPage)
 │           │   └── format/          # dates and error messages (+ tests)
 │           ├── App.tsx              # routes
 │           └── index.css            # Tailwind and the theme colors
 └── packages/
-    └── shared/              # registerSchema, loginSchema, shared types
+    └── shared/              # loginSchema, account schemas (create, update, password), roles, shared types
 ```
 
 ---
@@ -185,6 +189,7 @@ Fill them in (the full list is under [Environment files](#environment-files)):
 - In **`apps/api/.env`**:
   - put the same user, password and database name in `DATABASE_URL`
   - paste a `SESSION_SECRET` (`openssl rand -hex 32`)
+  - pick your first admin: `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`
 
 ### Option A: develop with hot reload (the usual way)
 
@@ -196,7 +201,7 @@ turbo run db:migrate         # creates the tables
 turbo run dev                # API on :4000, website on :5173
 ```
 
-Open http://localhost:5173, create an account, and you'll see the Pila welcome page.
+The API logs `First admin created: <username>` the first time. Open http://localhost:5173 and sign in with your `ADMIN_USERNAME` and `ADMIN_PASSWORD`, then add staff under **Accounts**.
 
 `turbo run dev` shows each app in its own panel: use ↑ / ↓ to switch between `@pila/web#dev` and `@pila/api#dev`. API errors only show in the API panel.
 
@@ -234,40 +239,68 @@ This builds the production image, waits for Postgres, runs the migrations and st
 
 ### Root `.env` (used by docker compose)
 
-| Variable            | Example                | Meaning                                          |
-| ------------------- | ---------------------- | ------------------------------------------------ |
-| `POSTGRES_USER`     | `pila`                 | Database user created by Docker                  |
-| `POSTGRES_PASSWORD` | `pick_a_password`      | Its password (letters, numbers, `_`; no `@ : /`) |
-| `POSTGRES_DB`       | `pila`                 | Database name                                    |
-| `SESSION_SECRET`    | `openssl rand -hex 32` | Only for Option B (the app container)            |
+| Variable                                          | Example                                       | Meaning                                          |
+| ------------------------------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| `POSTGRES_USER`                                   | `pila`                                        | Database user created by Docker                  |
+| `POSTGRES_PASSWORD`                               | `pick_a_password`                             | Its password (letters, numbers, `_`; no `@ : /`) |
+| `POSTGRES_DB`                                     | `pila`                                        | Database name                                    |
+| `SESSION_SECRET`                                  | `openssl rand -hex 32`                        | Only for Option B (the app container)            |
+| `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | `admin`, `you@example.com`, a strong password | Only for Option B: the first admin               |
 
 ### `apps/api/.env` (used by the API and dbmate)
 
-| Variable         | Required | Example / meaning                                                                      |
-| ---------------- | -------- | -------------------------------------------------------------------------------------- |
-| `PORT`           | no       | `4000`                                                                                 |
-| `DATABASE_URL`   | yes      | `postgres://pila:pick_a_password@127.0.0.1:5432/pila?sslmode=disable` (same as `.env`) |
-| `SESSION_SECRET` | yes      | at least 32 random characters: `openssl rand -hex 32`                                  |
-| `COOKIE_SECURE`  | no       | `true` in production by default (HTTPS-only cookie); `false` for plain http            |
-| `WEB_DIST_DIR`   | no       | Set by the Docker image: the built website the API should serve                        |
+| Variable         | Required    | Example / meaning                                                                      |
+| ---------------- | ----------- | -------------------------------------------------------------------------------------- |
+| `PORT`           | no          | `4000`                                                                                 |
+| `DATABASE_URL`   | yes         | `postgres://pila:pick_a_password@127.0.0.1:5432/pila?sslmode=disable` (same as `.env`) |
+| `SESSION_SECRET` | yes         | at least 32 random characters: `openssl rand -hex 32`                                  |
+| `COOKIE_SECURE`  | no          | `true` in production by default (HTTPS-only cookie); `false` for plain http            |
+| `WEB_DIST_DIR`   | no          | Set by the Docker image: the built website the API should serve                        |
+| `ADMIN_USERNAME` | first start | The first admin's username (letters, numbers and `_`)                                  |
+| `ADMIN_EMAIL`    | first start | The first admin's email                                                                |
+| `ADMIN_PASSWORD` | first start | The first admin's password, at least 8 characters                                      |
+
+The three `ADMIN_*` settings go together (all or none). They're only used when the API starts and there's **no admin yet**; after that they're ignored, so changing them can't overwrite anyone's account.
 
 Use `127.0.0.1` instead of `localhost` in `DATABASE_URL` on Windows if dbmate says the connection was refused on `[::1]:5432`.
 
 ---
 
+## Accounts and roles
+
+There's **no public sign-up**. Every account is made by an admin.
+
+1. **The first admin** comes from three settings: `ADMIN_USERNAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD`. When the API starts and there's no admin yet, it creates one and logs `First admin created: <username>`. Once an admin exists, the settings are ignored.
+2. **Admins add everyone else** under **Accounts → Add account**: name, username, email, role and a first password to give the person.
+3. **Two roles:**
+
+   | Role      | Can                                                                  |
+   | --------- | -------------------------------------------------------------------- |
+   | **Admin** | Everything: set up the place, manage accounts, and work a counter    |
+   | **Staff** | Work the counters (which counters they can use comes with the setup) |
+
+4. **Editing an account** (Accounts → Edit): name, email, role, and the **Account is on** switch.
+   - **Turning an account off** signs the person out on every device right away, and they can't sign in ("This account is turned off. Please ask an admin.").
+   - **Set a new password** for someone who forgot theirs: they're signed out everywhere, and only the new password works.
+   - A new role counts on the person's very next click: the API checks the role in the database on every admin request.
+5. **Safety rules:**
+   - An admin can't change their own role, turn off their own account, or set their own password from the Accounts page, so nobody locks themselves out by accident.
+   - There's always at least one admin who can sign in.
+
+---
+
 ## How sign-in works
 
-1. **Register** (`POST /api/auth/register`): the API checks the form with `registerSchema` and stores the username and email in lowercase. It hashes the password with bcrypt (12 rounds) and signs the new user in.
-2. **Sign in** (`POST /api/auth/login`): the username or email and the password are checked. A wrong password and an unknown user get the **same** answer, so nobody can find out which accounts exist.
-3. **Signing in starts a brand-new session.** The session is a row in the `session` table, and the browser gets a `pila.sid` cookie:
+1. **Sign in** (`POST /api/auth/login`): the username or email and the password are checked. A wrong password and an unknown user get the **same** answer, so nobody can find out which accounts exist. A turned-off account is only told so after the right password.
+2. **Signing in starts a brand-new session.** The session is a row in the `session` table, and the browser gets a `pila.sid` cookie:
    - `HttpOnly`: the page's JavaScript can't read it
    - `SameSite=Lax`
    - `Secure` in production: it's only sent over HTTPS
-4. **Protected API routes** use the `requireAuth` middleware and read the user's id from the session.
-5. **Sign out** (`POST /api/auth/logout`) deletes the session row, so the old cookie stops working.
-6. **Rate limit**: 20 sign-in or register tries per visitor every 15 minutes (in memory). The limit is in `buildApp.ts`.
+3. **Protected API routes** use the `requireAuth` middleware and read the user's id from the session. Admin routes use `requireAdmin`.
+4. **Sign out** (`POST /api/auth/logout`) deletes the session row, so the old cookie stops working.
+5. **Rate limit**: 20 sign-in tries per visitor every 15 minutes (in memory). The limit is in `buildApp.ts`.
 
-On the website, `useCurrentUser()` asks `GET /api/auth/me` once and every page shares that answer. `RequireAuth` protects pages, and `GuestOnly` sends signed-in users away from the sign-in and register pages.
+On the website, `useCurrentUser()` asks `GET /api/auth/me` once and every page shares that answer. `RequireAuth` protects pages, `RequireAdmin` protects the admin pages, and `GuestOnly` sends signed-in users away from the sign-in page.
 
 ---
 
@@ -275,21 +308,30 @@ On the website, `useCurrentUser()` asks `GET /api/auth/me` once and every page s
 
 All routes start with `/api`. Errors always look like `{ "message": "…", "errors": { "field": ["…"] } }`.
 
-| Method | Route                | Login? | What                                                        |
-| ------ | -------------------- | ------ | ----------------------------------------------------------- |
-| GET    | `/api/health`        | no     | `{ ok: true }` when the API can reach the database          |
-| POST   | `/api/auth/register` | no     | `{ username, email, password }` → 201 `{ user }`, signed in |
-| POST   | `/api/auth/login`    | no     | `{ login, password }` → `{ user }`                          |
-| GET    | `/api/auth/me`       | yes    | `{ user }`, or 401                                          |
-| POST   | `/api/auth/logout`   | no     | 204                                                         |
+| Method | Route              | Login? | What                                               |
+| ------ | ------------------ | ------ | -------------------------------------------------- |
+| GET    | `/api/health`      | no     | `{ ok: true }` when the API can reach the database |
+| POST   | `/api/auth/login`  | no     | `{ login, password }` → `{ user }`                 |
+| GET    | `/api/auth/me`     | yes    | `{ user }`, or 401                                 |
+| POST   | `/api/auth/logout` | no     | 204                                                |
 
-| Status | When                                                        |
-| ------ | ----------------------------------------------------------- |
-| 400    | The form didn't pass validation (`errors` says which field) |
-| 401    | Not signed in, or wrong sign-in                             |
-| 404    | Not found                                                   |
-| 409    | Username or email already taken                             |
-| 429    | Too many sign-in or register tries                          |
+Admin only (`requireAdmin`):
+
+| Method | Route                              | What                                                                           |
+| ------ | ---------------------------------- | ------------------------------------------------------------------------------ |
+| GET    | `/api/admin/accounts`              | `{ accounts }`, admins first                                                   |
+| POST   | `/api/admin/accounts`              | `{ firstName, lastName, username, email, role, password }` → 201 `{ account }` |
+| PUT    | `/api/admin/accounts/:id`          | `{ firstName, lastName, email, role, active }` → `{ account }`                 |
+| PUT    | `/api/admin/accounts/:id/password` | `{ password }` → 204, and the person is signed out everywhere                  |
+
+| Status | When                                                                               |
+| ------ | ---------------------------------------------------------------------------------- |
+| 400    | The form didn't pass validation (`errors` says which field)                        |
+| 401    | Not signed in, or wrong sign-in                                                    |
+| 403    | Not an admin, or the account is turned off                                         |
+| 404    | Not found (for example an account id that doesn't exist)                           |
+| 409    | Username or email already taken; or an admin would lock themselves or everyone out |
+| 429    | Too many sign-in tries                                                             |
 
 ---
 
@@ -327,11 +369,11 @@ docker compose up -d db
 turbo run test
 ```
 
-| Suite           | Where                       | What it checks                                                             |
-| --------------- | --------------------------- | -------------------------------------------------------------------------- |
-| API unit        | `apps/api/test/unit`        | User rules, shared schemas, use cases with fake repositories (no database) |
-| API integration | `apps/api/test/integration` | Register, sign in, sign out, sessions, rate limit, errors                  |
-| Website unit    | `apps/web/src/**/*.test.ts` | The API client (`ApiError`), error messages, dates                         |
+| Suite           | Where                       | What it checks                                                                                                                   |
+| --------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| API unit        | `apps/api/test/unit`        | User rules (who can change whose access), shared schemas, use cases with fake repositories (no database)                         |
+| API integration | `apps/api/test/integration` | Sign in and out, turned-off accounts, admin-only routes, adding and editing accounts, new passwords, the first admin, rate limit |
+| Website unit    | `apps/web/src/**/*.test.ts` | The API client (`ApiError`), error messages, dates, names                                                                        |
 
 ### The test database
 
@@ -339,7 +381,7 @@ The integration tests **never touch your real data**:
 
 - They use your `DATABASE_URL` database name plus `_test` (`pila` → `pila_test`), or `TEST_DATABASE_URL` if set.
 - dbmate creates it if needed and applies every migration before the tests run.
-- **Before every test**, all tables are emptied and the same seed data goes back in (users `maria` and `ana`, password `password123`), so every test starts from the same state.
+- **Before every test**, all tables are emptied and the same seed data goes back in (admin `jose`, staff `maria` and `ana`, password `password123`), so every test starts from the same state.
 - Safety guard: the tests refuse to run unless the database name ends in `_test`.
 - Passwords use 4 bcrypt rounds in tests (12 for real), so the tests run fast.
 

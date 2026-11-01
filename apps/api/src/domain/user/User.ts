@@ -1,7 +1,14 @@
+export type Role = "admin" | "staff";
+
 export interface User {
   id: string;
   username: string;
   email: string;
+  firstName: string;
+  lastName: string;
+  role: Role;
+  // false: turned off by an admin, can't sign in
+  active: boolean;
   passwordHash: string;
   createdAt: Date;
   updatedAt: Date;
@@ -15,6 +22,10 @@ export function toSafeUser(user: User): SafeUser {
     id: user.id,
     username: user.username,
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    active: user.active,
     createdAt: user.createdAt,
   };
 }

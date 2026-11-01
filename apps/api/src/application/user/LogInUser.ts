@@ -1,6 +1,9 @@
 import { toSafeUser } from "../../domain/user/User.js";
 import type { UserRepository } from "../../domain/user/UserRepository.js";
-import { InvalidCredentialsError } from "../../domain/user/errors.js";
+import {
+  AccountTurnedOffError,
+  InvalidCredentialsError,
+} from "../../domain/user/errors.js";
 import { isEmail, normalizeLogin } from "../../domain/user/rules.js";
 import type { PasswordHasher } from "../ports/PasswordHasher.js";
 
@@ -29,6 +32,8 @@ export class LogInUser {
     ) {
       throw new InvalidCredentialsError();
     }
+    // Only after the right password, so it reveals nothing to a stranger
+    if (!user.active) throw new AccountTurnedOffError();
     return toSafeUser(user);
   }
 }
