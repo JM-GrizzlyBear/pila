@@ -1,4 +1,4 @@
-import type { LoginInput, PublicUser, RegisterInput } from "@pern/shared";
+import type { LoginInput, PublicUser, RegisterInput } from "@pila/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchCurrentUser,
